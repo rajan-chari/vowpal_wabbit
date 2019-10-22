@@ -13,7 +13,7 @@ license as described in the file LICENSE.
 #include "debug_log.h"
 
 #undef VW_DEBUG_LOG
-#define VW_DEBUG_LOG false
+#define VW_DEBUG_LOG vw_dbg::learner
 
 #include <memory>
 

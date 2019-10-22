@@ -13,6 +13,7 @@ using namespace GEN_CS;
 using namespace CB_ALGS;
 using namespace exploration;
 using namespace VW::config;
+using std::endl;
 // All exploration algorithms return a vector of probabilities, to be used by GenericExplorer downstream
 
 namespace CB_EXPLORE

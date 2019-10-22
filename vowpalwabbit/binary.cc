@@ -3,6 +3,7 @@
 #include "debug_log.h"
 
 using namespace VW::config;
+using std::endl;
 
 namespace VW { namespace binary {
 template <bool is_learn>

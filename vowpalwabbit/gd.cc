@@ -26,19 +26,20 @@ license as described in the file LICENSE.
 #endif
 
 #include "debug_log.h"
-#undef VW_DEBUG_LOG
-#define VW_DEBUG_LOG false
-
 #include "gd.h"
 #include "accumulate.h"
 #include "reductions.h"
 #include "vw.h"
+
+#undef VW_DEBUG_LOG
+#define VW_DEBUG_LOG vw_dbg::gd
 
 #define VERSION_SAVE_RESUME_FIX "7.10.1"
 #define VERSION_PASS_UINT64 "8.3.3"
 
 using namespace LEARNER;
 using namespace VW::config;
+using std::endl;
 
 // todo:
 // 4. Factor various state out of vw&
