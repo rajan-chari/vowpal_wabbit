@@ -39,16 +39,14 @@ license as described in the file LICENSE.
 
 using namespace LEARNER;
 using namespace VW::config;
-using std::endl;
 
 // todo:
 // 4. Factor various state out of vw&
 namespace GD
 {
-bool GET_VW_DEBUG_LOG() { return VW_DEBUG_LOG; }
 
-std::string depth_str;
-std::string get_depth_str() { return depth_str; }
+uint32_t stack_depth;
+uint32_t get_stack_depth() { return stack_depth; }
 struct gd
 {
   //  double normalized_sum_norm_x;
@@ -151,6 +149,9 @@ void train(gd& g, example& ec, float update)
 {
   if (normalized)
     update *= g.update_multiplier;
+
+  VW_DBG(ec) << "gd: train() spare=" << spare << std::endl;
+
   foreach_feature<float, update_feature<sqrt_rate, feature_mask_off, adaptive, normalized, spare> >(*g.all, ec, update);
 }
 
@@ -387,7 +388,7 @@ inline void vec_add_print(float& p, const float fx, float& fw)
 template <bool l1, bool audit>
 void predict(gd& g, base_learner&, example& ec)
 {
-  depth_str = depth_indent_string(ec);
+  stack_depth = ec.stack_depth;
   vw& all = *g.all;
   if (l1)
     ec.partial_prediction = trunc_predict(all, ec, all.sd->gravity);
@@ -397,7 +398,7 @@ void predict(gd& g, base_learner&, example& ec)
   ec.partial_prediction *= (float)all.sd->contraction;
   ec.pred.scalar = finalize_prediction(all.sd, ec.partial_prediction);
 
-  VW_DBG(ec) << "gd: predict() " << scalar_pred_to_string(ec) << features_to_string(ec) << endl;
+  VW_DBG(ec) << "gd: predict() " << scalar_pred_to_string(ec) << features_to_string(ec) << std::endl;
 
   if (audit)
     print_audit_features(all, ec);
@@ -415,6 +416,7 @@ template <bool l1, bool audit>
 void multipredict(
     gd& g, base_learner&, example& ec, size_t count, size_t step, polyprediction* pred, bool finalize_predictions)
 {
+  stack_depth = ec.stack_depth;
   vw& all = *g.all;
   for (size_t c = 0; c < count; c++) pred[c].scalar = ec.l.simple.initial;
   if (g.all->weights.sparse)

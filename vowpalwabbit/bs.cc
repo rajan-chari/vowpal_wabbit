@@ -243,8 +243,6 @@ base_learner* bs_setup(options_i& options, vw& all)
   if (!options.was_supplied("bootstrap"))
     return nullptr;
 
-  std::cout << "bootstrap" << std::endl;
-
   data->ub = FLT_MAX;
   data->lb = -FLT_MAX;
 
