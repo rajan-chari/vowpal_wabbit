@@ -364,7 +364,9 @@ struct learner
   // called after learn example for each example.  Explicitly not recursive.
   inline void finish_example(vw& all, E& ec)
   {
+    print_reduction_name(ec, "finish_example");
     finish_example_fd.finish_example_f(all, finish_example_fd.data, (void*)&ec);
+    print_reduction_exit(ec);
   }
   // called after learn example for each example.  Explicitly not recursive.
   void set_finish_example(void (*f)(vw& all, T&, E&))
