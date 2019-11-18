@@ -26,7 +26,10 @@ struct csoaa
 {
   uint32_t num_classes;
   polyprediction* pred;
-  ~csoaa() { free(pred); }
+  ~csoaa()
+  {
+    free(pred);
+  }
 };
 
 template <bool is_learn>
@@ -153,6 +156,7 @@ struct ldf
 
   bool rank;
   action_scores a_s;
+  uint64_t ft_offset;
 
   v_array<action_scores> stored_preds;
 
@@ -256,7 +260,10 @@ void make_single_prediction(ldf& data, single_learner& base, example& ec)
   LabelDict::add_example_namespace_from_memory(data.label_features, ec, ld.costs[0].class_index);
 
   ec.l.simple = simple_label;
+  uint64_t old_offset = ec.ft_offset;
+  ec.ft_offset = data.ft_offset;
   base.predict(ec);  // make a prediction
+  ec.ft_offset = old_offset;
   ld.costs[0].partial_prediction = ec.partial_prediction;
 
   LabelDict::del_example_namespace_from_memory(data.label_features, ec, ld.costs[0].class_index);
@@ -282,25 +289,6 @@ bool test_ldf_sequence(ldf& data, multi_ex& ec_seq)
     }
   }
   return isTest;
-}
-
-void base_learn_restore_pred(single_learner& base, example* ec1) {
-  // Notes:  Q) Why are we saving value of prediction during learn()?
-  //
-  //        Short answer) Breach of encapsulation.
-  //
-  //        Long answer) gd.learn() changes state of ec.pred.
-  //        However, for progressive validation predict() was called initially
-  //        and result saved in ec.pred.  This is needed during finish_example()
-  //        Therefore we need to save the state of ec->pred and restore it after
-  //        base.learn is called.
-  //
-  //        We can (and should) get rid of this if we strictly follow the principle that we don't
-  //        allow gd.learn (or any other reduction.learn) to modify state of example.pred
-
-  const polyprediction saved_pred = ec1->pred; // save
-  base.learn(*ec1);
-  ec1->pred = saved_pred; // restore
 }
 
 void do_actual_learning_wap(ldf& data, single_learner& base, multi_ex& ec_seq)
@@ -345,7 +333,10 @@ void do_actual_learning_wap(ldf& data, single_learner& base, multi_ex& ec_seq)
       ec1->weight = value_diff;
       ec1->partial_prediction = 0.;
       subtract_example(*data.all, ec1, ec2);
-      base_learn_restore_pred(base, ec1);
+      uint64_t old_offset = ec1->ft_offset;
+      ec1->ft_offset = data.ft_offset;
+      base.learn(*ec1);
+      ec1->ft_offset = old_offset;
       ec1->weight = old_weight;
       unsubtract_example(ec1);
 
@@ -403,7 +394,10 @@ void do_actual_learning_oaa(ldf& data, single_learner& base, multi_ex& ec_seq)
 
     // learn
     LabelDict::add_example_namespace_from_memory(data.label_features, *ec, costs[0].class_index);
-    base_learn_restore_pred(base, ec);
+    uint64_t old_offset = ec->ft_offset;
+    ec->ft_offset = data.ft_offset;
+    base.learn(*ec);
+    ec->ft_offset = old_offset;
     LabelDict::del_example_namespace_from_memory(data.label_features, *ec, costs[0].class_index);
     ec->weight = old_weight;
 
@@ -424,43 +418,13 @@ multi_ex process_labels(ldf& data, const multi_ex& ec_seq_all);
  * 2) verify no labels in the middle of data
  * 3) learn_or_predict(data) with rest
  */
-void learn_csoaa_ldf(ldf& data, single_learner& base, multi_ex& ec_seq_all)
+template <bool is_learn>
+void do_actual_learning(ldf& data, single_learner& base, multi_ex& ec_seq_all)
 {
   if (ec_seq_all.empty())
     return;  // nothing to do
 
-  // handle label definitions
-  auto ec_seq = process_labels(data, ec_seq_all);
-  if (ec_seq.empty())
-    return;  // nothing more to do
-
-  // Ensure there are no more labels
-  // (can be done in existing loops later but as a side effect learning
-  //    will happen with bad example)
-  if (ec_seq_has_label_definition(ec_seq))
-  {
-    THROW("error: label definition encountered in data block");
-  }
-
-  /////////////////////// learn
-  if (!test_ldf_sequence(data, ec_seq))
-  {
-    if (data.is_wap)
-      do_actual_learning_wap(data, base, ec_seq);
-    else
-      do_actual_learning_oaa(data, base, ec_seq);
-  }
-}
-
-/*
- * 1) process all labels at first
- * 2) verify no labels in the middle of data
- * 3) learn_or_predict(data) with rest
- */
-void predict_csoaa_ldf(ldf& data, single_learner& base, multi_ex& ec_seq_all)
-{
-  if (ec_seq_all.empty())
-    return;  // nothing to do
+  data.ft_offset = ec_seq_all[0]->ft_offset;
 
   // handle label definitions
   auto ec_seq = process_labels(data, ec_seq_all);
@@ -478,6 +442,7 @@ void predict_csoaa_ldf(ldf& data, single_learner& base, multi_ex& ec_seq_all)
   /////////////////////// add headers
   uint32_t K = (uint32_t)ec_seq.size();
 
+  bool isTest = test_ldf_sequence(data, ec_seq);
   /////////////////////// do prediction
   uint32_t predicted_K = 0;
   if (data.rank)
@@ -510,6 +475,13 @@ void predict_csoaa_ldf(ldf& data, single_learner& base, multi_ex& ec_seq_all)
         predicted_K = k;
       }
     }
+  }
+  if (is_learn && !isTest)
+  {
+    if (data.is_wap)
+      do_actual_learning_wap(data, base, ec_seq);
+    else
+      do_actual_learning_oaa(data, base, ec_seq);
   }
 
   if (data.rank)
@@ -908,8 +880,8 @@ base_learner* csldf_setup(options_i& options, vw& all)
     pred_type = prediction_type::multiclass;
 
   ld->read_example_this_loop = 0;
-  learner<ldf, multi_ex>& l = init_learner(ld, as_singleline(setup_base(*all.options, all)), learn_csoaa_ldf,
-      predict_csoaa_ldf, 1, pred_type, "csoaa_ldf");
+  learner<ldf, multi_ex>& l = init_learner(ld, as_singleline(setup_base(*all.options, all)), do_actual_learning<true>,
+      do_actual_learning<false>, 1, pred_type, "csoaa_ldf");
   l.set_finish_example(finish_multiline_example);
   l.set_end_pass(end_pass);
   all.cost_sensitive = make_base(l);
