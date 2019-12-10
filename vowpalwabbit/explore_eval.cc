@@ -123,7 +123,8 @@ void finish_multiline_example(vw& all, explore_eval& data, multi_ex& ec_seq)
 template <bool is_learn>
 void do_actual_learning(explore_eval& data, multi_learner& base, multi_ex& ec_seq)
 {
-  example* label_example = CB_ADF::test_adf_sequence(ec_seq);
+  const int32_t labeled_example_idx = CB_ADF::verify_and_get_labeled_example(ec_seq);
+  example* label_example = (labeled_example_idx >= 0 ? ec_seq[labeled_example_idx] : nullptr);
 
   if (label_example != nullptr)  // extract label
   {
@@ -135,7 +136,7 @@ void do_actual_learning(explore_eval& data, multi_learner& base, multi_ex& ec_se
   if (label_example != nullptr)  // restore label
     label_example->l.cb = data.action_label;
 
-  data.known_cost = CB_ADF::get_observed_cost(ec_seq);
+  data.known_cost = CB_ADF::get_observed_cost(ec_seq, labeled_example_idx);
   if (label_example != nullptr && is_learn)
   {
     ACTION_SCORE::action_scores& a_s = ec_seq[0]->pred.a_s;

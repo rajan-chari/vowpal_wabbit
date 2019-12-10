@@ -85,8 +85,9 @@ template <typename ExploreType>
 inline void cb_explore_adf_base<ExploreType>::predict(
     cb_explore_adf_base<ExploreType>& data, LEARNER::multi_learner& base, multi_ex& examples)
 {
-  example* label_example = CB_ADF::test_adf_sequence(examples);
-  data._known_cost = CB_ADF::get_observed_cost(examples);
+  const int32_t labeled_example_idx = CB_ADF::verify_and_get_labeled_example(examples);
+  data._known_cost = CB_ADF::get_observed_cost(examples, labeled_example_idx);
+  example* label_example = (labeled_example_idx >= 0 ? examples[labeled_example_idx] : nullptr);
 
   if (label_example != nullptr)
   {
@@ -108,12 +109,12 @@ template <typename ExploreType>
 inline void cb_explore_adf_base<ExploreType>::learn(
     cb_explore_adf_base<ExploreType>& data, LEARNER::multi_learner& base, multi_ex& examples)
 {
-  example* label_example = CB_ADF::test_adf_sequence(examples);
+  const int32_t labeled_example_idx = CB_ADF::verify_and_get_labeled_example(examples);
+  const example* label_example = (labeled_example_idx >= 0 ? examples[labeled_example_idx] : nullptr);
   if (label_example != nullptr)
   {
     // Notes:  Label exists so call learn()
-    data._known_cost = CB_ADF::get_observed_cost(examples);
-    // learn iff label_example != nullptr
+    data._known_cost = CB_ADF::get_observed_cost(examples, labeled_example_idx);
     data.explore.learn(base, examples);
   }
   else if (!examples[0]->predict_called_before_learn)

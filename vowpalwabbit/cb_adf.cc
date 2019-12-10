@@ -101,35 +101,23 @@ struct cb_adf
   void restore_prediction(action_scores& a_s);
 };
 
-CB::cb_class get_observed_cost(multi_ex& examples)
+// Get observed cost from the indexed example in example collection
+// All inputs need to be verified before calling this function
+CB::cb_class get_observed_cost(multi_ex& examples, int32_t labeled_example_id)
 {
-  CB::label ld;
-  ld.costs = v_init<cb_class>();
-  int index = -1;
-  CB::cb_class known_cost;
+  CB::cb_class known_cost{0., uint32_t(labeled_example_id), 0., 0.};
 
-  size_t i = 0;
-  for (example*& ec : examples)
+  if (labeled_example_id >= 0)
   {
-    if (ec->l.cb.costs.size() == 1 && ec->l.cb.costs[0].cost != FLT_MAX && ec->l.cb.costs[0].probability > 0)
-    {
-      ld = ec->l.cb;
-      index = (int)i;
-    }
-    ++i;
+    const CB::label ld = examples[labeled_example_id]->l.cb;
+    known_cost = ld.costs[0];
   }
-
-  // handle -1 case.
-  if (index == -1)
+  else
   {
+    // handle no labeled example case
     known_cost.probability = -1;
-    return known_cost;
-    // std::cerr << "None of the examples has known cost. Exiting." << std::endl;
-    // throw exception();
   }
 
-  known_cost = ld.costs[0];
-  known_cost.action = index;
   return known_cost;
 }
 
@@ -270,38 +258,44 @@ void cb_adf::learn_MTR(multi_learner& base, multi_ex& examples)
 }
 
 // Validates a multiline example collection as a valid sequence for action dependent features format.
-example* test_adf_sequence(multi_ex& ec_seq)
+// Returns the index of the action containing the label/cost
+int32_t verify_and_get_labeled_example(multi_ex& ec_seq)
 {
   if (ec_seq.empty())
     THROW("cb_adf: At least one action must be provided for an example to be valid.");
 
-  uint32_t count = 0;
-  example* ret = nullptr;
-  for (auto* ec : ec_seq)
+  bool found_label = false;
+  int32_t labeled_example_index = -1;
+
+  // Get the labeled example and check if the example collection is valid adf
+  for (int32_t i = 0; i < int32_t(ec_seq.size()); ++i)
   {
+    const example* ec = ec_seq[i];
+
     // Check if there is more than one cost for this example.
     if (ec->l.cb.costs.size() > 1)
       THROW("cb_adf: badly formatted example, only one cost can be known.");
 
-    // Check whether the cost was initialized to a value.
+    // If the cost exists, check whether the cost was initialized to a value.
     if (ec->l.cb.costs.size() == 1 && ec->l.cb.costs[0].cost != FLT_MAX)
     {
-      ret = ec;
-      count += 1;
-      if (count > 1)
+      if (found_label)
         THROW("cb_adf: badly formatted example, only one line can have a cost");
+      found_label = true;
+      labeled_example_index = i;
     }
   }
 
-  return ret;
+  return labeled_example_index;
 }
 
 template <bool is_learn>
 void cb_adf::do_actual_learning(multi_learner& base, multi_ex& ec_seq)
 {
   _offset = ec_seq[0]->ft_offset;
-  _gen_cs.known_cost = get_observed_cost(ec_seq);  // need to set for test case
-  if (is_learn && test_adf_sequence(ec_seq) != nullptr)
+  const int32_t labeled_example_id = verify_and_get_labeled_example(ec_seq);
+  _gen_cs.known_cost = get_observed_cost(ec_seq, labeled_example_id);
+  if (is_learn && labeled_example_id != -1)
   {
     restore_prediction(ec_seq[0]->pred.a_s);
     switch (_gen_cs.cb_type)

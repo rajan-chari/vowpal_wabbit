@@ -62,9 +62,6 @@ cb_explore_adf_cover::cb_explore_adf_cover(size_t cover_size, float psi, bool no
 template <bool is_learn>
 void cb_explore_adf_cover::predict_or_learn_impl(LEARNER::multi_learner& base, multi_ex& examples)
 {
-  // Redundant with the call in cb_explore_adf_base, but encapsulation means we need to do this again here
-  _gen_cs.known_cost = CB_ADF::get_observed_cost(examples);
-
   // Randomize over predictions from a base set of predictors
   // Use cost sensitive oracle to cover actions to form distribution.
   const bool is_mtr = _gen_cs.cb_type == CB_TYPE_MTR;
