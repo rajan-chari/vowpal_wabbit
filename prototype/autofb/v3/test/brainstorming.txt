@@ -1,0 +1,139 @@
+#include "simple.h"
+
+#include "../../type_constructors.h"
+#include "../../type_registry.h"
+#include "../../vwtypes/vwtypes.h"
+
+#include "../../type_builder.h"
+
+#include "../reduction_options.h"
+
+#include <type_traits>
+
+namespace VW
+{
+namespace simple
+{
+namespace details_v1
+{
+using namespace VW::t3_REDUCTION;
+using namespace typesys;
+
+struct simple_config_ex
+{
+public:
+  int a;
+  float b;
+
+private:
+  REFLECT((int)a, (float)b)
+}; // ^ 
+
+
+DATA(simple_config)
+{
+  //Prop<int> a;
+  prop_((int) a)
+    .bind_option().with_help("help for a in simple config");
+  prop_((float) b)
+    .bind_option().with_help("help for b in simple config");
+};
+
+EXTENSION(simple_config_v2) OF(simple_config)
+{
+  vec_((float) c)
+    .bind_option().with_help("help for c in simple config");
+};
+
+DATA(simple_predict_t)
+{
+  prop_((bool) some_important_flag);
+};
+
+DATA(simple_learn_t)
+{
+  prop_((int) a_counter);
+  // vec_((float) a_vector);
+  // umap_((K, V) a_map);
+};
+
+void simple_predict(const simple_config& config, const simple_predict_t& data, example* ex)
+{
+  std::cout << "simple_predict with flag=" << data.some_important_flag << std::endl;
+}
+
+void simple_learn(const simple_config& config, const simple_predict_t& data, const simple_learn_t& learn_data, example* ex)
+{
+  std::cout << "simple_learn with flag=" << data.some_important_flag << std::endl;
+  std::cout << "             with counter=" << lean_data.a_counter++ << std::endl;
+}
+
+pseudo_vw::VW::LEARNER::base_learner* simple_init(
+    pseudo_vw::VW::setup_base_i* stack_builder, 
+    const reduction_descriptor& desc,
+    const simple_config* config)
+{
+  std::cout << "simple_init with " << config->a << std::endl;
+
+  return make_learner(desc)
+          .with_learn<simple_learn>()
+          .with_predict<simple_predict>();
+          // other stuff
+          // this can check the types here and fail if they don't match
+}
+
+reduction_descriptor describe_v1()
+{
+  options.bind<simple_config, &simple_config::a>("a")
+    .with_help("help for a in simple options");
+
+
+  reduction_data_descriptor data(
+    type<simple_config>::erase(),
+    type<simple_predict_t>::erase(),
+    type<simple_learn_t>::erase()
+  );
+  
+  // TODO: I really would like to get this inline with simple_config
+  // option_group<simple_config> simple_options("simple options");
+  // simple_options.bind<&simple_config::a>().essential().with_help("help for a in simple options");
+
+  reduction_descriptor desc
+  {
+    "simple",
+    1,
+    // options_group(data), (implicit, since we can compute it from data)
+    data,
+    erase_init_f<simple_config, simple_init>()
+  };
+
+  return desc;
+}
+
+reduction_descriptor describe_v2()
+{
+  reduction_data_descriptor data(
+    type<simple_config>::erase(),
+    type<simple_predict_t>::erase(),
+    type<simple_learn_t>::erase()
+  );
+  
+  // TODO: I really would like to get this inline with simple_config
+  // option_group<simple_config> simple_options("simple options");
+  // simple_options.bind<&simple_config::a>().essential().with_help("help for a in simple options");
+
+  reduction_descriptor desc
+  {
+    "simple",
+    1,
+    // options_group(data), (implicit, since we can compute it from data)
+    data,
+    erase_init_f<simple_config, simple_init>()
+  };
+
+  return desc;
+}
+
+}  // namespace details_v1
+}  // namespace simple
+}  // namespace VW

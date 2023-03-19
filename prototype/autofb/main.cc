@@ -42,7 +42,11 @@ int main(int argc, char** argv)
   //test_autofb();
   //kernel_svm_test();
   //do_test();
-  test_v3_main();
+  //test_v3_main();
+
+  std::cout << "-- main() --" << std::endl;
+
+  return 0;
 }
 
 // template <typename builtin>

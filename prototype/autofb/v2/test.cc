@@ -65,6 +65,8 @@ TC_DATA(test1)
   public: 
     property_<float> x = { reflection_beacon, __witnessx().get_evidence() };
 
+  // _(float, x);
+  // prop_(float, x);
   v_(float, y);
 };
 

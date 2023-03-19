@@ -65,8 +65,6 @@ struct UMap : public PropBase<std::unordered_map<K, V>, field_kind::map>
   UMap() = default;
   UMap(const std::unordered_map<K, V>& val) : Prop<std::unordered_map<K, V>>{val} {}
   UMap(std::unordered_map<K, V>&& val) : Prop<std::unordered_map<K, V>>{std::move(val)} {}
-
-  
 };
 
 template <typename C, typename T, template<typename _> typename Wrapper = Prop>
@@ -118,5 +116,11 @@ struct MapHelper
 
 template <typename C, typename K, typename V>
 using MapPropertyBuilder = PropertyBuilder<C, UMap<K, V>, MapHelper<K>::template Wrapper>;
+
+template <typename, template <typename, typename...> typename>
+struct is_instance : public std::false_type {};
+
+template <typename...Ts, template <typename, typename...> typename U>
+struct is_instance<U<Ts...>, U> : public std::true_type {};
 
 }  // namespace typesys

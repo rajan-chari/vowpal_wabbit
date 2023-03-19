@@ -72,6 +72,7 @@ public:
   // T& detach()
   // {
   //   return *detach(); // why is the compiler happy with this without a cast?!
+                         // answer: because it was a templated method that never got instantiated
   // }
   void* move_out()
   {

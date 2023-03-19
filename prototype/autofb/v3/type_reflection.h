@@ -72,8 +72,20 @@ struct type_descriptor
   erased_type etype;
 
   type_descriptor(std::string name, erased_type etype)
-    : name(name), etype(etype), base_type(nullptr)
+    : name(name), etype(etype), base_type(nullptr), properties(&_properties)
   {
+  }
+
+  type_descriptor(const type_descriptor& other) 
+    : name(other.name), etype(other.etype), base_type(other.base_type), properties(&_properties)
+  {
+    _properties = other._properties;
+  }
+
+  type_descriptor(type_descriptor&& other) 
+    : name(std::move(other.name)), etype(std::move(other.etype)), base_type(other.base_type), properties(&_properties)
+  {
+    _properties = std::move(other._properties);
   }
 
   // TODO: Are these needed?
@@ -92,7 +104,7 @@ private:
   type_descriptor* base_type;
 
 public:
-  base::vector_view<property_descriptor> properties {_properties};
+  base::vector_view<property_descriptor> properties;
 };
 
 }

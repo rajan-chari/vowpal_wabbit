@@ -13,10 +13,20 @@ namespace VW
     {
       // we could use earsed_type here, but it would simply be used to look up the type_descriptor
       // so we might as well skip the dereference step (and the extra loose coupling)
-      typesys::type_descriptor* config_params_td;
-      typesys::type_descriptor* predict_params_td;
-      typesys::type_descriptor* learn_params_td;
+      typesys::type_descriptor& config_params_td;
+      typesys::type_descriptor& predict_params_td;
+      typesys::type_descriptor& learn_params_td;
     };
+
+    // template <typename config_params_t, typename predict_params_t, typename learn_params_t>
+    // reduction_data_descriptor make_reduction_data_descriptor()
+    // {
+    //   // return reduction_data_descriptor{
+    //   //   typesys::type_descriptor::get<config_params_t>(),
+    //   //   typesys::type_descriptor::get<predict_params_t>(),
+    //   //   typesys::type_descriptor::get<learn_params_t>()
+    //   // };
+    // }
 
     template <typename T>
     std::function<bool(typesys::erased_lvalue_ref&)> make_default_initializer(T value)
@@ -37,16 +47,19 @@ namespace VW
 
     const std::function<bool(typesys::erased_lvalue_ref&)> no_op = [](typesys::erased_lvalue_ref&) -> bool { return true; };
 
+    const std::string ESSENTIAL = "";
+
     struct option_descriptor
     {
-      std::string name;
-      std::string help;
-      //std::vector<std::string> aliases; // TODO:
       typesys::property_descriptor pd;
+      
+      std::string name = ESSENTIAL;
+      std::string help = "";
+      std::vector<std::string> aliases; // TODO:
 
       std::function<bool(typesys::erased_lvalue_ref&)> default_init_f = no_op;
 
-      // TODO: deal with default in a type-erased manner
+      bool is_essential() const { return name == ESSENTIAL; } // TODO: better way to do this?
     };
 
     template <typename config_params>
@@ -61,8 +74,8 @@ namespace VW
 
       return [](pseudo_vw::VW::setup_base_i* stack_builder, const typesys::activation& config)
       {
-        return init_f(stack_builder, config.get<config_params>());
-      }
+        return init_f(stack_builder, &config.get<config_params>());
+      };
     };
 
     struct reduction_descriptor

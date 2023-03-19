@@ -1,6 +1,7 @@
 #include "base.h"
 #include "type_reflection.h"
 #include "type_constructors.h"
+#include "type_registry.h"
 
 namespace typesys
 {
@@ -83,12 +84,31 @@ struct my_data
   inline static auto y_id() { return field_id<Prop<std::string>,&self_t::y>(); }
 };
 
+template <typename>
+class Second 
+{};
+
+template <typename, typename, typename>
+class Third 
+{};
+
+
 void test_reflect()
 {
   using std::cout;
   using std::endl;
 
+  cout << "Testing is_instance" << endl;
+
+  using NotMap = Prop<int>;
+  using IsMap = UMap<std::string, int>;
+
+  cout << "  NotMap is not a map: " << is_instance<NotMap, UMap>::value << endl;
+  cout << "  IsMap is a map: " << is_instance<IsMap, UMap>::value << endl;
+
   cout << "Testing Reflection and AutoReflection" << endl;
+
+
 
   type_descriptor my_data_descriptor { "my_data", type<my_data>::erase() };
 
@@ -102,7 +122,7 @@ void test_reflect()
 
   //g_registry.types.emplace_back(std::move(my_data_descriptor));
 
-  cout << "Testing Registered types:" << endl;
+  //cout << "Testing Registered types:" << endl;
   // for (const auto& td : g_registry.types)
   // {
   //   cout << "  " << td.name << endl;
@@ -110,3 +130,31 @@ void test_reflect()
 }
 
 }  // namespace typesys
+
+namespace typesys {
+  type_registry& type_registry::instance() 
+  {
+    static type_registry instance;
+    return instance;
+  }
+
+  type_registry::type_registry() : _types(), types(&_types)
+  {
+    #define REGISTER_BUILTIN(_type) this->register_type_internal(#_type, type< ## _type ## >::erase(), true);
+    REGISTER_BUILTIN(int8_t);
+    REGISTER_BUILTIN(int16_t);
+    REGISTER_BUILTIN(int32_t);
+    REGISTER_BUILTIN(int64_t);
+    REGISTER_BUILTIN(uint8_t);
+    REGISTER_BUILTIN(uint16_t);
+    REGISTER_BUILTIN(uint32_t);
+    REGISTER_BUILTIN(uint64_t);
+    REGISTER_BUILTIN(float);
+    REGISTER_BUILTIN(double);
+    REGISTER_BUILTIN(bool);
+    REGISTER_BUILTIN(std::string);
+    #undef REGISTER_BUILTIN
+
+    max_builtin = this->_types.size() - 1;
+  }
+}

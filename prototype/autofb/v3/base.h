@@ -17,15 +17,20 @@ public:
   using iterator = typename std::vector<T, _Alloc>::iterator;
   using const_iterator = typename std::vector<T, _Alloc>::const_iterator;
 
-  vector_view(std::vector<T, _Alloc>& vec) : _(vec) {};
+  vector_view(std::vector<T, _Alloc>* vec) : _{vec} {};
 
-  iterator begin() { return _.begin(); }
-  iterator end() { return _.end(); }
-  const_iterator begin() const { return _.begin(); }
-  const_iterator end() const { return _.end(); }
+  iterator begin() { return _->begin(); }
+  iterator end() { return _->end(); }
+  const_iterator begin() const { return _->begin(); }
+  const_iterator end() const { return _->end(); }
+
+  inline T& back() { return _->back(); }
+  inline const T& back() const { return _->back(); }
+
+  inline size_t size() const { return _->size(); }
 
 private:
-  std::vector<T, _Alloc>& _;
+  std::vector<T, _Alloc>* _;
 };
 
 }
