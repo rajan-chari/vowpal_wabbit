@@ -1,13 +1,16 @@
 #include "autofb_schema.h"
+#include "autofb_schema_builder.h"
 
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/idl.h"
 #include "flatbuffers/bfbs_generator.h"
 #include "flatbuffers/util.h"
 
+#include <sstream>
+
 namespace autofb
 {
-bfbs_data fbs_data::to_binary()
+  bfbs_data fbs_data::to_binary()
 {
   flatbuffers::IDLOptions opts;
 
@@ -40,4 +43,64 @@ bfbs_data fbs_data::to_binary()
 
   return {result};
 }
+}
+
+namespace autofb
+{
+  const typesys::type_descriptor* schema_builder::find_type(const typesys::erased_type& type)
+  {
+    typesys::type_registry::type_iter it = tr.find_type(type.tindex);
+    if (it != tr.types_end())
+    {
+      return nullptr;
+    }
+    
+    return it._Ptr;
+  }
+
+  fbs_data schema_builder::build_idl()
+  {
+    using std::endl;
+    
+    std::stringstream idl;
+
+    idl << "namespace " << this->descriptor.schema_namespace << ";" << endl << endl;
+
+    // TODO: Support dependent schemas, but for now, single-file
+
+    std::for_each(this->tr.types.begin(), this->tr.types.end(),
+    [this, &idl](const typesys::type_descriptor& ti)
+    {
+      if (ti.properties.size() == 0) { return; }
+
+      idl << "table " << ti.name << " {" << endl;
+
+      std::for_each(ti.properties.begin(), ti.properties.end(),
+      [this, &idl](const typesys::property_descriptor& pi)
+      {
+        idl << "  ";
+
+        // TODO: Map?!
+        auto* maybe_pti = this->find_type(pi.eftype.evalue);
+        if (!maybe_pti)
+        {
+          return;
+        }
+
+        auto& pti = *maybe_pti;
+
+        if (pi.eftype.is_vector()) { idl << "["; }
+
+        idl << pi.name << ":" << pti.name << ";";
+
+        if (pi.eftype.is_vector()) { idl << "]"; }
+
+        idl << endl;
+      });
+
+      idl << "}" << endl << endl;
+    });
+
+    return fbs_data{idl.str()};
+  }
 }

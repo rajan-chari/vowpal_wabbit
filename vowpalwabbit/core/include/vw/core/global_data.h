@@ -307,6 +307,10 @@ public:
   // Default value of 2 follows behavior of 1-indexing and can change to 0-indexing if detected
   uint32_t indexing = 2;  // for 0 or 1 indexing
 
+  // whether or not we are using the experimental configure/init mechanisms (for enabling Forward Compatibility)
+  // todo: set up --target-framework flag to set this to true
+  bool is_using_target_framework = false;
+
   explicit workspace(VW::io::logger logger);
   ~workspace();
   std::shared_ptr<VW::rand_state> get_random_state() { return _random_state_sp; }

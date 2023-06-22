@@ -2,7 +2,7 @@
 #include "..\test\test.h"
 
 RUN_ONCE({
-  std::cout << "Who needs main() anyways? REDUX (now with more reduce_code)" << std::endl;
+  //std::cout << "Who needs main() anyways? REDUX (now with more reduce_code)" << std::endl;
 
   
 })

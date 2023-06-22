@@ -23,11 +23,15 @@
 #include "vw/core/unique_sort.h"
 #include "vw/text_parser/parse_example_text.h"
 
+#include "vw/core/experimental/durable_model.h"
+#include "vw/core/experimental/versioned_types.h"
+
 #include <iostream>
+
+
 
 namespace
 {
-
 std::unique_ptr<VW::workspace> initialize_internal(
     std::unique_ptr<VW::config::options_i, VW::options_deleter_type> options, VW::io_buf* model, bool skip_model_load,
     VW::trace_message_t trace_listener, void* trace_context, VW::io::logger* custom_logger,
@@ -50,20 +54,63 @@ std::unique_ptr<VW::workspace> initialize_internal(
   }
 
   std::vector<std::string> dictionary_namespaces;
-  try
+  // TODO: add logic to options parsing so that we never attempt to parse out .keep() options
+  // before we have merged in the model file options. Right now we rely on manually keeping this
+  // invariant.
+  if (all->is_using_target_framework)
   {
-    // Loads header of model files and loads the command line options into the options object.
-    bool interactions_settings_duplicated{};
-    VW::details::load_header_merge_options(*all->options, *all, *model, interactions_settings_duplicated);
+    // create the reduction "stack"
+    void* reduction_registry;
 
-    VW::details::parse_modules(*all->options, *all, interactions_settings_duplicated, dictionary_namespaces);
-    VW::details::instantiate_learner(*all, std::move(setup_base));
-    VW::details::parse_sources(*all->options, *all, *model, skip_model_load);
+    void* config;
+    if (model != nullptr)
+    {
+      model_data::durable_model durable_model = load_durable_model(model);
+
+      
+      // load from the model
+      // config = load_global_config(model)
+      // if (!check_config_compatibility(global_config, all->options))
+      //   ; //TODO: error handling for non-compatible CLI options viz model
+      //
+      //
+    }
+    else
+    {
+      // parse the config from the options
+      /*
+      config = bind_global_config(all->options);
+      /*
+      std::vector<reduction_config> reduction_configs = reduction_registry.bind_reduction_configs(all->options)
+
+      config->reductions = reduction_configs;
+      
+      */
+    }
+
+    // initialize_global(all, global_config)
+    // initialize_reductions(all, global_config)
+
+    // at this point all should be the equivalent of what we would have gotten if we ran the other
+    // arm of this if-fork; the way we do this is by managing the scaffolding appropriately
   }
-  catch (VW::save_load_model_exception& e)
+  else
   {
-    auto msg = fmt::format("{}, model files = {}", e.what(), fmt::join(all->initial_regressors, ", "));
-    throw VW::save_load_model_exception(e.filename(), e.line_number(), msg);
+    try
+    {
+      // Loads header of model files and loads the command line options into the options object.
+      bool interactions_settings_duplicated{};
+      VW::details::load_header_merge_options(*all->options, *all, *model, interactions_settings_duplicated);
+
+      VW::details::parse_modules(*all->options, *all, interactions_settings_duplicated, dictionary_namespaces);
+      VW::details::instantiate_learner(*all, std::move(setup_base));
+      VW::details::parse_sources(*all->options, *all, *model, skip_model_load);
+    }
+    catch (VW::save_load_model_exception& e)
+    {
+      auto msg = fmt::format("{}, model files = {}", e.what(), fmt::join(all->initial_regressors, ", "));
+      throw VW::save_load_model_exception(e.filename(), e.line_number(), msg);
+    }
   }
 
   if (!all->quiet)

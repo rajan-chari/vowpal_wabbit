@@ -47,7 +47,7 @@ if(WIN32)
   endif()
 endif()
 
-option(BUILD_FLATBUFFERS "Build flatbuffers" OFF)
+option(BUILD_FLATBUFFERS "Build flatbuffers" ON) # !!! TODO: DO THE RIGHT THING HERE W.R.T. SERIALIZATION !!!
 if(BUILD_FLATBUFFERS)
   list(APPEND VCPKG_MANIFEST_FEATURES "flatbuffers")
 endif()

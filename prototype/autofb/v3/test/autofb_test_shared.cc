@@ -20,6 +20,6 @@ namespace autofb { namespace test {
   }
 
   RUN_ONCE({
-    //print_known_types();
+    print_known_types();
   });
 }}

@@ -37,6 +37,10 @@ set(vw_core_headers
   include/vw/core/error_reporting.h
   include/vw/core/example_predict.h
   include/vw/core/example.h
+  include/vw/core/experimental/durable_model.h
+  include/vw/core/experimental/versioned_types.h
+  include/vw/core/experimental/type_traits_ex.h
+
   include/vw/core/fast_pow10.h
   include/vw/core/feature_group.h
   include/vw/core/gd_predict.h
@@ -356,14 +360,16 @@ set(vw_core_sources
   src/unique_sort.cc
   src/version.cc
   src/vw_validate.cc
+  src/vw_durable_model.cc
   src/vw.cc
+
 )
 
 vw_add_library(
     NAME "core"
     TYPE "STATIC_ONLY"
     SOURCES ${vw_core_headers} ${vw_core_sources}
-    PUBLIC_DEPS vw_common vw_explore vw_allreduce vw_config fmt::fmt vw_cache_parser vw_text_parser vw_json_parser
+    PUBLIC_DEPS vw_common vw_explore vw_allreduce vw_config fmt::fmt vw_cache_parser vw_text_parser vw_json_parser vw_serialization
     PRIVATE_DEPS
         # Special case for dealing with header-only INTERFACE dependencies of a STATIC library
         # Use BUILD_INTERFACE to prevent them from being exported, i.e. treat them as PRIVATE
