@@ -52,7 +52,8 @@ public:
   activation& operator=(std::unique_ptr<T, Deleter>&& unwrapped)
   {
     // type erase the incoming pointer, and store it in the activation
-    _value = std::unique_ptr<void, destroy_f>(unwrapped.release(), [](void* ptr) { Deleter{}(static_cast<T*>(ptr)); });
+    _value = std::unique_ptr<void, destroy_f_raw>(unwrapped.release(), [](void* ptr) { Deleter{}(static_cast<T*>(ptr)); });
+    return *this;
   }
 
   activation& operator=(activation&& other) { _value = std::move(other._value); return *this; }
@@ -94,16 +95,6 @@ private:
   std::unique_ptr<void, std::function<void(void*)>> _value;
 };
 
-template <typename T, init_function_t<T> init_f = default_init<T>, destroy_function_t<T> destroy_f = default_destroy<T>>
-class activator
-{
-public:
-  static activation activate()
-  {
-    return activation(init_f(), destroy_f);
-  }
-};
-
 template <typename T, typename = std::enable_if_t<std::is_default_constructible<T>::value>>
 T* default_init()
 {
@@ -115,6 +106,16 @@ void default_destroy(T* ptr)
 {
   std::default_delete<T>{}(ptr);
 }
+
+template <typename T, init_function_t<T> init_f = default_init<T>, destroy_function_t<T> destroy_f = default_destroy<T>>
+class activator
+{
+public:
+  static activation activate()
+  {
+    return activation(init_f(), destroy_f);
+  }
+};
 
 using activator_f = activation(*)();
 }

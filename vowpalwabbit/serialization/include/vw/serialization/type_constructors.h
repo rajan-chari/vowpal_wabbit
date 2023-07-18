@@ -8,7 +8,7 @@ namespace typesys
 template <typename T, const field_kind kind>
 struct PropBase
 {
-  using field_kind = std::integral_constant<field_kind, kind>;
+  using field_kind_t = std::integral_constant<field_kind, kind>;
   using storage_type = T;
 
 protected:
@@ -27,10 +27,10 @@ struct Prop : public PropBase<T, field_kind::scalar>
   }
 
   Prop() = default;
-  Prop(const T& val) : PropBase<T>{val} {}
-  Prop(T&& val) : PropBase<T>{std::move(val)} {}
+  Prop(const T& val) : PropBase<T, field_kind::scalar>{val} {}
+  Prop(T&& val) : PropBase<T, field_kind::scalar>{std::move(val)} {}
 
-  inline erased_lvalue_ref reflect() { erased_lvalue_ref{eftype().evalue, ref{val}}; }
+  inline erased_lvalue_ref reflect() { return erased_lvalue_ref{eftype().evalue, ref{val}}; }
 
   using PropBase<T, typesys::field_kind::scalar>::val;
 
@@ -47,15 +47,15 @@ struct Vec : public PropBase<std::vector<T>, field_kind::vector>
   using const_iterator = typename std::vector<T>::const_iterator;
 
   Vec() = default;
-  Vec(const std::vector<T>& val) : Prop<std::vector<T>>{val} {}
-  Vec(std::vector<T>&& val) : Prop<std::vector<T>>{std::move(val)} {}
+  Vec(const std::vector<T>& val) : PropBase<std::vector<T>, field_kind::vector>{val} {}
+  Vec(std::vector<T>&& val) : PropBase<std::vector<T>, field_kind::vector>{std::move(val)} {}
 
-  iterator begin() { return val.begin(); }
-  iterator end() { return val.end(); }
-  const_iterator begin() const { return val.begin(); }
-  const_iterator end() const { return val.end(); }
+  iterator begin() { return this->val.begin(); }
+  iterator end() { return this->val.end(); }
+  const_iterator begin() const { return this->val.begin(); }
+  const_iterator end() const { return this->val.end(); }
 
-  inline erased_vector reflect() { return vtype<T>::erase(val); }
+  inline erased_vector reflect() { return vtype<T>::erase(this->val); }
 };
 
 template <typename K, typename V>
@@ -65,8 +65,8 @@ struct UMap : public PropBase<std::unordered_map<K, V>, field_kind::map>
   using value_type = V;
 
   UMap() = default;
-  UMap(const std::unordered_map<K, V>& val) : Prop<std::unordered_map<K, V>>{val} {}
-  UMap(std::unordered_map<K, V>&& val) : Prop<std::unordered_map<K, V>>{std::move(val)} {}
+  UMap(const std::unordered_map<K, V>& val) : PropBase<std::unordered_map<K, V>, field_kind::map>{val} {}
+  UMap(std::unordered_map<K, V>&& val) : PropBase<std::unordered_map<K, V>, field_kind::map>{std::move(val)} {}
 };
 
 template <typename C, typename T, template<typename _> typename Wrapper = Prop>

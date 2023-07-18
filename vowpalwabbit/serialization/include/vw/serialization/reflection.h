@@ -18,7 +18,7 @@ struct erased_field_binder
     : _container_type(container_type), _field_type(field_type), _binder(binder)
   {}
 
-  inline bool try_bind(typesys::erased_lvalue_ref& container, typesys::erased_lvalue_ref*& target)
+  inline bool try_bind(typesys::erased_lvalue_ref& container, typesys::erased_lvalue_ref*& target) const
   {
     if (container._type != _container_type) return false;
     

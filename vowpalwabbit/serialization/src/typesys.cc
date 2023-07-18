@@ -10,7 +10,7 @@
 namespace typesys
 {
 template <typename WrapperT>
-using is_known_field_wrapper_t = std::enable_if_t<std::is_same_v<field_kind, decltype(WrapperT::eftype())>>;
+using is_known_field_wrapper_t = std::enable_if_t<std::is_same<field_kind, decltype(WrapperT::eftype())>::value>;
 
 template <typename self_t, const type_descriptor* td>
 struct tc_data_base
@@ -132,7 +132,7 @@ namespace typesys {
 
   type_registry::type_registry() : _types(), types(&_types)
   {
-    #define REGISTER_BUILTIN(_type) this->register_type_internal(#_type, type< ## _type ## >::erase());
+    #define REGISTER_BUILTIN(_type) this->register_type_internal(#_type, type< _type >::erase());
     REGISTER_BUILTIN(int8_t);
     REGISTER_BUILTIN(int16_t);
     REGISTER_BUILTIN(int32_t);

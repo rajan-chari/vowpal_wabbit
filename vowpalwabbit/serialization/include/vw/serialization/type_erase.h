@@ -7,17 +7,33 @@
 #include <typeindex>
 
 #include <unordered_map>
+#include <cstring>
 
 namespace typesys
 {
+struct erased_vector;
+using e_vector_builder_f = erased_vector(*)();
 
+template <typename T>
+struct type;
+template <typename T>
+struct vtype;
 
 struct erased_type
 {
+private:
+  // must be created through type::erase()
+  erased_type() = default;
+
+public:
   std::type_index tindex;
   size_t size;
   activator_f activator;
+  // This builder is required to be able to get an erased_vector out of an erased_type
+  e_vector_builder_f e_vector_builder;
+  //e_map_builder_f e_map_builder;
 
+public:
   template <typename T>
   bool is() const
   {
@@ -43,16 +59,31 @@ struct erased_type
       return et.tindex.hash_code();
     }
   };
+
+  template <typename T>
+  friend class type;
 };
 
 template <typename T>
 struct type
 {
 public:
-  //template <class = std::enable_if_t<std::is_default_constructible<T>::value>
+  template< class Q = T,
+            typename std::enable_if<
+              base::is_specialization<Q, std::vector>::value, bool
+            >::type = true>
   inline static erased_type erase()
   {
-    return erased_type{typeid(T), sizeof(T), &activator<T>::activate};
+    return erased_type{typeid(T), sizeof(T), &activator<T>::activate, []() {return vtype<T>::erase();}};
+  }
+
+  template< class Q = T,
+            typename std::enable_if<
+              !base::is_specialization<Q, std::vector>::value, bool
+            >::type = true>
+  inline static erased_type erase()
+  {
+    return erased_type{typeid(T), sizeof(T), &activator<T>::activate, nullptr};
   }
 
   using typed_init_f = T* (*)();
@@ -81,7 +112,7 @@ public:
   template <typed_init_f init, typed_destroy_f destroy>
   inline static erased_type erase()
   {
-    return erased_type{typeid(T), sizeof(T), &activator<T, init, destroy>::activate};
+    return erased_type{typeid(T), sizeof(T), &activator<T, init, destroy>::activate, nullptr};
   }
 };
 
@@ -120,7 +151,8 @@ class erased_dispatch_table
     template <typename T, dispatch_f<Ts...> D>
     erased_dispatch_table& add()
     {
-      auto erased = type_dispatch<T, Ts...>::erase<D>();
+      //erased_dispatch<Ts...> erased = {&type_dispatch<T, Ts...>::is_match, D};
+      erased_dispatch<Ts...> erased = type_dispatch<T, Ts...>::template erase<D>();
       dispatch_table[typeid(T)] = erased;
       return *this;
     }
@@ -134,7 +166,7 @@ class erased_dispatch_table
     template <typename T>
     erased_dispatch_table& add(dispatch_f<Ts...> D)
     {
-      erased_dispatch erased = { &is_match<T>, D };
+      erased_dispatch<Ts...> erased = { &is_match<T>, D };
       dispatch_table[typeid(T)] = erased;
       return *this;
     }
@@ -182,7 +214,7 @@ struct ref
   // the enable_if does a very important job here - it prevents the compiler from
   // treating the template as a valid copy constructor for ref. Without it, we
   // double-wrap whenever we copy, leading to "fun" bugs.
-  template <typename T, class = std::enable_if<!std::is_same<T, ref>::value>::type>
+  template <typename T, class = typename std::enable_if<!std::is_same<T, ref>::value>::type>
   ref(T& r) : _r(&r) 
   {
     // std::cout << "ref(T& r) : r(&r) @" << this->_r << std::endl << '\t';

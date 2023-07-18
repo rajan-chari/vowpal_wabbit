@@ -1,5 +1,7 @@
 #include "vw/serialization/autofb_schema.h"
 #include "vw/serialization/autofb_serializer.h"
+#include "vw/serialization/type_registry.h"
+#include "vw/serialization/type_erase.h"
 
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/idl.h"
@@ -38,7 +40,7 @@ namespace autofb
       std::cout << last_error << std::endl << std::endl;
       std::cout << text_data << std::endl;
 
-      throw new std::exception(last_error.c_str());
+      throw new std::runtime_error(last_error.c_str());
     }
 
     parser.Serialize();
@@ -55,7 +57,8 @@ namespace autofb
     std::string result;
     result.resize(size);
 
-    memcpy_s(&result[0], result.size(), buf, size);
+    //memcpy_s(&result[0], result.size(), buf, size);
+    memcpy(&result[0], buf, size);
 
     return {result};
   }
@@ -68,7 +71,7 @@ namespace autofb
       return nullptr;
     }
     
-    return it._Ptr;
+    return it->get_base_type();
   }
 
   fbs_data schema_builder::build_idl()
@@ -131,6 +134,261 @@ namespace autofb
 #pragma region autfb_serializer
 namespace autofb
 {
-  // TODO: Port the prototype code to here
+
+struct fbb_AddElement_dispatcher
+{
+  #define __FBB_ADD_ELEMENT_DISPATCHER_PACK flatbuffers::FlatBufferBuilder&, const reflection::Field&, typesys::erased_lvalue_ref&
+  using dispatch_f = typesys::dispatch_f<__FBB_ADD_ELEMENT_DISPATCHER_PACK>;
+  using dispatch_table = typesys::erased_dispatch_table<__FBB_ADD_ELEMENT_DISPATCHER_PACK>;
+
+  fbb_AddElement_dispatcher()
+  {
+    dt.add<std::int8_t, &fbb_AddElement_dispatcher::dispatcher<std::int8_t>>()
+      .add<std::int16_t, &fbb_AddElement_dispatcher::dispatcher<std::int16_t>>()
+      .add<std::int32_t, &fbb_AddElement_dispatcher::dispatcher<std::int32_t>>()
+      .add<std::int64_t, &fbb_AddElement_dispatcher::dispatcher<std::int64_t>>()
+      .add<std::uint8_t, &fbb_AddElement_dispatcher::dispatcher<std::uint8_t>>()
+      .add<std::uint16_t, &fbb_AddElement_dispatcher::dispatcher<std::uint16_t>>()
+      .add<std::uint32_t, &fbb_AddElement_dispatcher::dispatcher<std::uint32_t>>()
+      .add<std::uint64_t, &fbb_AddElement_dispatcher::dispatcher<std::uint64_t>>()
+      .add<float, &fbb_AddElement_dispatcher::dispatcher<float>>()
+      .add<double, &fbb_AddElement_dispatcher::dispatcher<double>>()
+      .add<bool, &fbb_AddElement_dispatcher::dispatcher<bool>>();
+  }
+
+  void operator()(flatbuffers::FlatBufferBuilder& fbb, const reflection::Field& field, typesys::erased_lvalue_ref& value)
+  {
+    dt.dispatch(value._type, fbb, field, value);
+  }
+
+private:
+  dispatch_table dt;
+
+  template <typename T>
+  static void dispatcher(flatbuffers::FlatBufferBuilder& fbb, const reflection::Field& field, typesys::erased_lvalue_ref& erased_lvalue)
+  {
+    fbb.AddElement<T>(field.offset(), erased_lvalue.get<T>());
+  }
+};
+
+void add_flatbuffer_field(flatbuffers::FlatBufferBuilder& fbb, const reflection::Field& field, typesys::erased_lvalue_ref& value)
+{
+  static fbb_AddElement_dispatcher add_element_d;
+
+  add_element_d(fbb, field, value);
+}
+
+flatbuffers::uoffset_t serialize_flatbuffer_vector(
+  flatbuffers::FlatBufferBuilder& fbb,
+  const schema_descriptor& descriptor,
+  const reflection::Schema& schema,
+  const typesys::type_descriptor& ti,
+  typesys::erased_vector& espan);
+
+flatbuffers::uoffset_t serialize_flatbuffer_table(
+  flatbuffers::FlatBufferBuilder& fbb, 
+  const schema_descriptor& descriptor,
+  const reflection::Schema& schema,
+  const typesys::type_descriptor& ti,
+  typesys::erased_lvalue_ref& value)
+{
+  using namespace typesys;
+  assert(!type_registry::instance().is_builtin(ti)); //, "built-in type misinterpreted as table"
+
+  std::string qname = descriptor.make_qualified_name(ti.name);
+  auto maybe_object = schema.objects()->LookupByKey(qname.c_str());
+  assert(maybe_object); // "table not found in schema"
+
+  const reflection::Object& object = *maybe_object;
+
+  std::unordered_map<name_t, flatbuffers::uoffset_t> offsets;
+
+  // pass1: depth-first build the offsets for complex object (non-builtins, or strings)
+  std::for_each(ti.properties.begin(), ti.properties.end(), 
+    [&offsets, &fbb, &descriptor, &schema, &object, &value](auto& it)
+    {
+      auto& eftype = it.eftype;
+      const type_descriptor* maybe_ti = nullptr;
+
+      auto typeit = type_registry::instance().find_type(eftype.evalue.tindex);
+      if (typeit != type_registry::instance().types_end())
+      {
+        maybe_ti = &(*typeit);
+      }
+      
+      assert(maybe_ti != nullptr); //, "property type was not registered property (missing builtin?)"
+
+      const type_descriptor& pti = *maybe_ti;
+
+      // Filter out non-(vector, string, table)s (in other words, scalar, non-string built-ins) 
+      // after caching the type lookup
+      if (!eftype.is_vector() && type_registry::instance().is_builtin(pti) && !eftype.evalue.template is<std::string>()) { return; }
+
+      flatbuffers::uoffset_t offset;
+      if (eftype.is_vector())
+      {
+        assert(eftype.evalue.e_vector_builder != nullptr);
+        erased_vector espan = eftype.evalue.e_vector_builder();
+        offset = serialize_flatbuffer_vector(fbb, descriptor, schema, pti, espan);
+      }
+      else if (type_registry::instance().is_builtin(pti))
+      {
+        // this property is a string
+        erased_lvalue_ref* pvalue = nullptr;
+        if(!it.binder.try_bind(value, pvalue))
+        {
+          //TODO: error condition
+          return;
+        }
+        std::string str = pvalue->get<std::string>();
+        offset = fbb.CreateString(str).o;
+      }
+      else
+      {
+        // this property is a table
+        erased_lvalue_ref* pvalue = nullptr;
+        if(!it.binder.try_bind(value, pvalue))
+        {
+          //TODO: error condition
+          return;
+        }
+        auto inner_qname = descriptor.make_qualified_name(pti.name);
+        offset = serialize_flatbuffer_table(fbb, descriptor, schema, pti, *pvalue);
+      }
+
+      offsets[it.name.c_str()] = offset;
+    });
+
+  // pass2: add the offsets and scalars to the table
+  flatbuffers::uoffset_t table_offset = fbb.StartTable();
+
+  std::for_each(ti.properties.begin(), ti.properties.end(), 
+    [&offsets, &fbb, &schema, &object, &value](auto& it)
+    {
+      auto& eftype = it.eftype;
+      
+      // our second pass, means we know that the type is cached
+      const type_descriptor& pti = *type_registry::instance().find_type(eftype.evalue.tindex);
+
+      const reflection::Field* maybe_field = object.fields()->LookupByKey(it.name.c_str());
+      if (maybe_field == nullptr)
+      {
+        // this property is not in the schema
+        // TODO: error?
+        return;
+      }
+
+      const reflection::Field& field = *maybe_field;
+
+      auto offsetit = offsets.find(it.name.c_str());
+      if (offsetit == offsets.end())
+      {
+        assert(type_registry::instance().is_builtin(pti));
+        assert(!eftype.is_vector()); //, "builtin property cannot be a vector"
+        erased_lvalue_ref* pvalue = nullptr;
+        if(!it.binder.try_bind(value, pvalue))
+        {
+          //TODO: error condition
+          return;
+        }
+        add_flatbuffer_field(fbb, field, *pvalue);
+      }
+      else
+      {
+        fbb.AddOffset(field.offset(), flatbuffers::Offset<void>(offsetit->second));
+      }
+    });
+
+  table_offset = fbb.EndTable(table_offset);
+  return table_offset;
+}
+
+flatbuffers::uoffset_t serialize_flatbuffer_vector(
+  flatbuffers::FlatBufferBuilder& fbb,
+  const schema_descriptor& descriptor,
+  const reflection::Schema& schema,
+  const typesys::type_descriptor& ti,
+  typesys::erased_vector& espan)
+{
+  using namespace typesys;
+  const static fbb_AddElement_dispatcher add_element_d;
+
+  if (type_registry::instance().is_builtin(ti))
+  {
+    if (espan._type.is<std::string>())
+    {
+      return fbb.CreateVectorOfStrings(reinterpret_cast<std::string*>(espan.data()), reinterpret_cast<std::string*>(espan.data()) + espan.size()).o;
+    }
+    else
+    {
+      // this is a vector of scalars which are not strings
+      uint8_t* buf;
+      flatbuffers::uoffset_t result = fbb.CreateUninitializedVector(espan.size(), espan._type.size, &buf);
+      espan.copy_to(reinterpret_cast<void*>(buf), espan.size() * espan._type.size);
+
+      return result;
+    }
+  }
+  else
+  {
+    std::vector<flatbuffers::uoffset_t> offsets;
+    offsets.reserve(espan.size());
+
+    uint8_t* buf = reinterpret_cast<uint8_t*>(espan.data());
+    static_assert(sizeof(uint8_t) == 1, "our pointer type better be a single byte");
+
+    const size_t advance = espan._type.size;
+
+    for (size_t i = 0; i < espan.size(); i++)
+    {
+      void* pi = buf + i * advance;
+
+      // we have to work using the one-level-higher indirect type
+      // (void*) vs T&, which means 
+      void** magic = reinterpret_cast<void**>(pi);
+
+      erased_lvalue_ref elv (espan._type, ref(*magic));
+
+      offsets.push_back(serialize_flatbuffer_table(fbb, descriptor, schema, ti, elv));
+    }
+
+    //espan.reduce<void>(f);
+
+    fbb.StartVector(espan.size(), sizeof(flatbuffers::uoffset_t), flatbuffers::AlignOf<flatbuffers::uoffset_t>());
+    for (int i = espan.size(); i > 0;)
+    {
+      fbb.PushElement(offsets[--i]);
+    }
+    return fbb.EndVector(espan.size());
+  }
+}
+
+// TODO: Port the prototype code to here
+offset_of_any serializer::write_flatbuffer(
+  flatbuffers::FlatBufferBuilder& fbb, 
+  typesys::erased_lvalue_ref& target)
+{
+  // todo: it would be nice to enforce these known invariants at compile time
+  // but for now, we'll just know they hold and assert
+  using namespace typesys;
+  auto it = type_registry::instance().find_type(target._type.tindex);
+  assert(it != type_registry::instance().types_end()); //, "type not registered");
+
+  const type_descriptor& ti = *it;
+  assert(!type_registry::instance().is_builtin(ti)); //, "we cannot serialize built-ins directly; need to be in a table"
+
+  auto maybe_schema = _schema.get();
+  assert(maybe_schema); //, "schema not found for type - TODO: this is a real possible error, handle it");
+
+  const reflection::Schema& schema = *maybe_schema;
+
+  //print all of the names of the types in the schemas
+  auto types = schema.objects();
+  for ( size_t i = 0; i < types->Length(); i++ ) {
+      const reflection::Object* type = types->Get( i );
+      std::cout << "type: " << type->name()->str() << std::endl;
+  }
+  return offset_of_any{serialize_flatbuffer_table(fbb, _schema.descriptor, schema, ti, target)};
+}
 }
 #pragma endregion

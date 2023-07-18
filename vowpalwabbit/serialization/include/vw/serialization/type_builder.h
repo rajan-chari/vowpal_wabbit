@@ -39,7 +39,7 @@ namespace typesys
       {
         // need to pull out the inner type of the property
 
-        std::cout << "type: " << typeid(P::value_type).name() << std::endl;
+        std::cout << "type: " << typeid(typename P::value_type).name() << std::endl;
 
         // this is a scalar
         td.register_property({
@@ -107,7 +107,7 @@ namespace typesys
     template <typename BinderT, std::enable_if_t<is_instance<typename BinderT::BuilderT, binding_builder>::value>>
     typename BinderT::BuilderT& bind(BinderT binder)
     {
-      return binder.bind<C, P>(*this, pd);
+      return binder.template bind<C, P>(*this, pd);
     }
 
   protected:
