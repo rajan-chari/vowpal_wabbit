@@ -95,7 +95,7 @@ private:
   std::unique_ptr<void, std::function<void(void*)>> _value;
 };
 
-template <typename T, typename = std::enable_if_t<std::is_default_constructible<T>::value>>
+template <typename T, typename = typename std::enable_if<std::is_default_constructible<T>::value>::type>
 T* default_init()
 {
   return new T();
