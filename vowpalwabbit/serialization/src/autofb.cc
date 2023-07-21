@@ -222,14 +222,20 @@ private:
   }
 };
 
-void add_flatbuffer_field(flatbuffers::FlatBufferBuilder& fbb, const reflection::Field& field, typesys::erased_lvalue_ref& value)
+void add_flatbuffer_field(
+  flatbuffers::FlatBufferBuilder& fbb,
+  const reflection::Field& field,
+  typesys::erased_lvalue_ref& value)
 {
   static fbb_AddElement_dispatcher add_element_d;
 
   add_element_d(fbb, field, value);
 }
 
-void read_flatbuffer_field(const flatbuffers::Table& table, const reflection::Field& field, typesys::erased_lvalue_ref& value)
+void read_flatbuffer_field(
+  const flatbuffers::Table& table,
+  const reflection::Field& field,
+  typesys::erased_lvalue_ref& value)
 {
   static fbb_ReadElement_dispatcher read_element_d;
 
@@ -605,11 +611,14 @@ offset_of_any serializer::write_flatbuffer(
   return offset_of_any{serialize_flatbuffer_table(fbb, _schema.descriptor, schema, ti, target)};
 }
 
-typesys::activation serializer::read_flatbuffer(const uint8_t* buf, typesys::erased_type target_type)
+typesys::activation serializer::read_flatbuffer(
+  const uint8_t* buf,
+  typesys::erased_type target_type)
   {
     using namespace typesys;
     activation result = target_type.activator();
-    //reflector r{result.get<reflectable>()};
+    void* res = result.get();
+    erased_lvalue_ref target_ref {target_type, ref(res)};
 
     auto it = type_registry::instance().find_type(target_type.tindex);
     assert(it != type_registry::instance().types_end()); //, "type not registered");
@@ -632,7 +641,7 @@ typesys::activation serializer::read_flatbuffer(const uint8_t* buf, typesys::era
 
     const flatbuffers::Table& source = *maybe_source;
 
-    //read_flatbuffer_table(source, schema, table, ti, r.reflect_scalar("this"));
+    read_flatbuffer_table(source, schema, table, ti, target_ref);
 
     return result;
   }

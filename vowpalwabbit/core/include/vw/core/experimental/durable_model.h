@@ -78,11 +78,11 @@ public:
   // TODO: pull to feature_config_experimental
 
 public:
-  feature_config_v1() : feature_config_<1>(sizeof(typename feature_config_v1)) {}
+  feature_config_v1() : feature_config_<1>(sizeof(feature_config_v1)) {}
 };
 
 
-class feature_config_vEXP : feature_config_<static_cast<size_t>(-1)>
+class feature_config_vEXP : feature_config_<static_cast<uint32_t>(-1)>
 {
 public:
   typesys::Vec<std::string> ignore_features_EXP; 

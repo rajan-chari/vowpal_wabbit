@@ -19,13 +19,13 @@ namespace model_data
     typesys::ref v;
 
   public:
-    container(void* p) : p(p) 
+    container(void* p) : p(p), v(p)
     {
-      v = typesys::ref<T>(); // TODO: pull the actual ref from p
+      //v = typesys::ref(); // TODO: pull the actual ref from p
     }
 
-    inline operator T&() { return this->v.get<T>(); }
-    inline T& operator()() { return this->v.get<T>(); } // TODO: force inline?
+    inline operator T&() { return this->v.template get<T>(); }
+    inline T& operator()() { return this->v.template get<T>(); } // TODO: force inline?
     inline T& operator()(const T& v) { this->v = v; return this->v; }
   };
 
@@ -88,13 +88,14 @@ namespace model_data
       {
         return container<T> { _state }; // represents producing a container around the state provider pointer
                                         // TODO: pipe through the state allocation
-
+/*
         if (!transient)
         {
           register_with_persistence_story(name);
         }
 
         state.create_backing(name);
+*/
       }
 
       template <typename T, persist_mode m = persist_mode::always>
@@ -150,11 +151,11 @@ namespace model_data
       // TODO: detect if V is a vector type, and if so, use the vector type
       if (is_vector<V>::value)
       {
-        return this->ensure_field(typesys::erased_field_type::vector(typesys::erased_type::from_type<vector_type_t<V>>()), name);
+        return this->ensure_field(typesys::erased_field_type::vector(typesys::type<vector_type_t<V>>::erase()), name);
       }
       else
       {
-        return this->ensure_field(typesys::erased_field_type::scalar(typesys::erased_type::from_type<V>()), name);
+        return this->ensure_field(typesys::erased_field_type::scalar(typesys::type<V>::erase()), name);
       }
       // TODO: map?
     }
@@ -174,7 +175,7 @@ namespace model_data
       return false;
     }
 
-    return foreach_type<Rest>(state, f);
+    return foreach_type<Rest...>(state, f);
   }
 
   // template <template <typename...Ts> typename typelist>
@@ -233,10 +234,10 @@ namespace model_data
     using i = version_index<max_version>;
     
     template <version_t v>
-    using version = typename i::type_version<v>;
+    using version = typename i::template type_version<v>;
 
     template <typename... Versions>
-    using version_list = typename i::version_list<Versions...>;
+    using version_list = typename i::template version_list<Versions...>;
 
     template <typename... Versions>
     versioned_data(version_list<Versions...>, version_t version) : instance_version(version)
