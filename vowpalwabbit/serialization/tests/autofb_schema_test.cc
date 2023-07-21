@@ -26,7 +26,7 @@ table test_type {
 }
 
 )";
-/*
+
   type_registry registry;
   
 
@@ -43,5 +43,5 @@ table test_type {
   fbs_data fbs = builder.build_idl();
 
   EXPECT_EQ(fbs.text_data, schema);
-  */
+
 }

@@ -70,9 +70,8 @@ namespace typesys
     }
 
   protected:
-    type_builder_ex(type_builder_ex& tb) : td(tb.td)
-    {
-    }
+    type_builder_ex(type_builder_ex& tb) = default;
+    type_builder_ex(type_builder_ex&& tb) = default;
 
   private:
     type_descriptor& td;
@@ -111,8 +110,8 @@ namespace typesys
     }
 
   protected:
-    property_builder_ex(property_builder_ex<C, P>& pb) : Base(pb), pd(pb.pd)
-    {}
+    property_builder_ex(property_builder_ex<C, P>& pb) = default;
+    property_builder_ex(property_builder_ex<C, P>&& pb) = default;
 
   private:
     // TODO: check that this is safe
