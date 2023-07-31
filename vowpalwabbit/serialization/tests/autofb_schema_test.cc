@@ -1,12 +1,121 @@
 #include "vw/serialization/autofb_schema.h"
+#include "vw/serialization/autofb_serializer.h"
 #include "vw/serialization/type_registry.h"
 #include "vw/serialization/type_builder.h"
+#include "vw/serialization/type_constructors.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 using namespace typesys;
 using namespace autofb;
+
+// function that takes a string and returns a string and
+// replaces newlines and tabs with spaces
+std::string normalize(const std::string& str)
+{
+  // replace newlines and tabs with spaces
+  std::string ret = str;
+  std::replace(ret.begin(), ret.end(), '\n', ' ');
+  std::replace(ret.begin(), ret.end(), '\t', ' ');
+
+  // remove multiple spaces
+  ret.erase(std::unique(
+    ret.begin(),
+    ret.end(),
+    [](char a, char b) { return a == ' ' && b == ' '; }),
+    ret.end());
+  return ret;
+}
+
+class NoDefaultConstructor
+{
+  public:
+    NoDefaultConstructor(int a) : a(a) {}
+    int a;
+};
+
+class DefaultConstructor
+{
+  public:
+    DefaultConstructor() = default;
+    DefaultConstructor(int a) : a(a) {}
+    int a;
+};
+
+// TODO: test all basic types Prop<>, Vec<>
+// TODO: struct, struct of struct
+// Note: need a default constructor for now
+
+TEST(Serialization, PropClasses)
+{
+  Prop<int> a;
+  a=1;
+  EXPECT_EQ(a.val, 1);
+  EXPECT_EQ(a, 1);
+
+  Prop<int> b(1);
+  EXPECT_EQ(b.val, 1);
+  EXPECT_EQ(b, 1);
+
+  Prop<int> c = 1;
+  EXPECT_EQ(c.val, 1);
+  EXPECT_EQ(c, 1);
+
+  Prop<DefaultConstructor> d;
+
+  // The following is a compile error, as expected
+  //Prop<NoDefaultConstructor> d;
+
+  Prop<NoDefaultConstructor> e(1);
+  EXPECT_EQ(e.val.a, 1);
+}
+
+template <typename T>
+struct test_single
+{
+  Prop<T> a;
+};
+
+TEST(Serialization, IndividualTypes)
+{
+  std::string schema_str = R"(
+  namespace test;
+  table test_single {
+    a:int32;
+  }
+  )";
+        
+  type_registry registry;
+  type_descriptor td = type_builder_ex<test_single<int>>::register_type(
+                        registry, "test_single"
+                      )
+                      .with_property<Prop<int>, &test_single<int>::a>("a")
+                      .descriptor();
+  schema_builder builder("test", registry);
+  fbs_data fbs = builder.build_idl();
+  EXPECT_EQ(normalize(fbs.text_data), normalize(schema_str));
+
+  // Serialize and deserialize test
+
+  // Begin serialize
+  schema schema_var = builder.build();
+  serializer serializer(schema_var);
+  flatbuffers::FlatBufferBuilder fbb;
+  test_single<int> t{1};
+  auto erased = type<test_single<int>>::erase();
+  ref a_ref(t); 
+  erased_lvalue_ref elv { erased, a_ref };
+  offset_of_any offset = serializer.write_flatbuffer(fbb, elv);
+  fbb.Finish(flatbuffers::Offset<void>(offset));
+  // End serialize
+
+  // Begin deserialize
+  uint8_t* buf = fbb.GetBufferPointer();
+  size_t size = fbb.GetSize();
+
+  // End deserialize
+}
 
 struct test_type
 {
@@ -17,7 +126,7 @@ struct test_type
 
 TEST(SerializationSchema, SmokeTest)
 {
-  std::string schema = R"(namespace test;
+  std::string schema_str = R"(namespace test;
 
 table test_type {
   a:int32;
@@ -39,9 +148,11 @@ table test_type {
     .with_property<Prop<std::string>, &test_type::c>("c")
     .descriptor();
 
+
   schema_builder builder("test", registry);
   fbs_data fbs = builder.build_idl();
 
-  EXPECT_EQ(fbs.text_data, schema);
+  EXPECT_EQ(fbs.text_data, schema_str);
 
-}
+  }
+
