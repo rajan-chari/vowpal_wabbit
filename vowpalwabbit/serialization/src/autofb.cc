@@ -18,6 +18,7 @@ namespace autofb
     { typeid(std::int8_t), "int8" },
     { typeid(std::int16_t), "int16" },
     { typeid(std::int32_t), "int32" },
+    { typeid(std::int64_t), "int64" },
     { typeid(std::uint8_t), "uint8" },
     { typeid(std::uint16_t), "uint16" },
     { typeid(std::uint32_t), "uint32" },
