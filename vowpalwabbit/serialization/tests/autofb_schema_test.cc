@@ -77,7 +77,7 @@ struct test_single
   Prop<T> a;
 };
 
-TEST(Serialization, IndividualTypes)
+TEST(Serialization, IndividualType_SchemaGeneration)
 {
   std::string schema_str =
     R"(namespace test;
@@ -95,7 +95,19 @@ TEST(Serialization, IndividualTypes)
   schema_builder builder("test", registry);
   fbs_data fbs = builder.build_idl();
   EXPECT_EQ(normalize(fbs.text_data), normalize(schema_str));
+}
 
+TEST(Serialization, IndividualType_Write_Read)
+{
+  // register with the global instance
+  auto& registry = type_registry::instance();
+  //Register type
+  type_descriptor td = type_builder_ex<test_single<int>>::register_type(
+                        registry, "test_single"
+                      )
+                      .with_property<Prop<int>, &test_single<int>::a>("a")
+                      .descriptor();
+  schema_builder builder("test", registry);
   // Serialize and deserialize test
 
   // Begin serialize
