@@ -6,7 +6,6 @@
 
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/idl.h"
-#include "flatbuffers/bfbs_generator.h"
 #include "flatbuffers/util.h"
 
 #include <sstream>
@@ -71,8 +70,8 @@ namespace autofb
     {
       return nullptr;
     }
-    
-    return it->get_base_type();
+    const typesys::type_descriptor* ret_val = it->has_base_type() ? it->get_base_type() : &*it;
+    return ret_val;
   }
 
   fbs_data schema_builder::build_idl()
@@ -301,7 +300,7 @@ void read_flatbuffer_vector_field(
   }
   else
   {
-    //read_flatbuffer_vector_table()
+    //read_flatbuffer_vector_table();
   }
 }
 
