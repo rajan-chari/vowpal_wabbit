@@ -77,24 +77,36 @@ struct test_single
   Prop<T> a;
 };
 
-TEST(Serialization, IndividualType_SchemaGeneration)
+template<typename T>
+auto test_single_type(const std::string& type_str) -> void
 {
-  std::string schema_str =
-    R"(namespace test;
-        table test_single {
-        a:int32;
-      }
-    )";
+  std::string schema_str = "namespace test; table test_single { a:" + type_str + "; } ";
         
   type_registry registry;
-  type_descriptor td = type_builder_ex<test_single<int>>::register_type(
+  type_descriptor td = type_builder_ex<test_single<T>>::register_type(
                         registry, "test_single"
                       )
-                      .with_property<Prop<int>, &test_single<int>::a>("a")
+                      .with_property<Prop<T>, &test_single<T>::a>("a")
                       .descriptor();
   schema_builder builder("test", registry);
   fbs_data fbs = builder.build_idl();
   EXPECT_EQ(normalize(fbs.text_data), normalize(schema_str));
+}
+
+TEST(Serialization, IndividualType_SchemaGeneration)
+{
+  test_single_type<int8_t>("int8");
+  test_single_type<int16_t>("int16");
+  test_single_type<int32_t>("int32");
+  test_single_type<int64_t>("int64");
+  test_single_type<uint8_t>("uint8");
+  test_single_type<uint16_t>("uint16");
+  test_single_type<uint32_t>("uint32");
+  test_single_type<uint64_t>("uint64");
+  test_single_type<bool>("bool");
+  test_single_type<float>("float");
+  test_single_type<double>("double");
+  test_single_type<std::string>("string");
 }
 
 TEST(Serialization, IndividualType_Write_Read)
