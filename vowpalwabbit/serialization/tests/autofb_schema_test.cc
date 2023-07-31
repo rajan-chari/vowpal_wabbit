@@ -79,12 +79,12 @@ struct test_single
 
 TEST(Serialization, IndividualTypes)
 {
-  std::string schema_str = R"(
-  namespace test;
-  table test_single {
-    a:int32;
-  }
-  )";
+  std::string schema_str =
+    R"(namespace test;
+        table test_single {
+        a:int32;
+      }
+    )";
         
   type_registry registry;
   type_descriptor td = type_builder_ex<test_single<int>>::register_type(
