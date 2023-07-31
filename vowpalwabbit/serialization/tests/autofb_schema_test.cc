@@ -126,7 +126,9 @@ TEST(Serialization, IndividualType_Write_Read)
   schema schema_var = builder.build();
   serializer serializer(schema_var);
   flatbuffers::FlatBufferBuilder fbb;
-  test_single<int> t{1};
+
+  constexpr int input_val = 1791;
+  test_single<int> t{input_val};
   auto erased = type<test_single<int>>::erase();
   ref a_ref(t); 
   erased_lvalue_ref elv { erased, a_ref };
@@ -138,6 +140,9 @@ TEST(Serialization, IndividualType_Write_Read)
   uint8_t* buf = fbb.GetBufferPointer();
   size_t size = fbb.GetSize();
 
+  activation act = serializer.read_flatbuffer(buf, erased);
+  test_single<int> out_struct = act.get<test_single<int>>();
+  EXPECT_EQ(input_val, out_struct.a);
   // End deserialize
 }
 
