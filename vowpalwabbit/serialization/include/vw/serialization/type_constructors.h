@@ -2,6 +2,7 @@
 
 #include "vw/serialization/base.h"
 #include "vw/serialization/type_reflection.h"
+#include <type_traits>
 
 namespace typesys
 {
@@ -10,6 +11,14 @@ struct PropBase
 {
   using field_kind_t = std::integral_constant<field_kind, kind>;
   using storage_type = T;
+
+  // (C++ 14 has enable_if_t, but this works with C++ 11)
+  // If T is default-constructible, provide a default constructor for PropBase<T>
+  template <typename U = T, typename std::enable_if<std::is_default_constructible<U>::value>::type* = nullptr>
+  PropBase() : val(T()) {}
+
+  PropBase(const T& val) : val(val) {} // copy constructor that takes a T
+  PropBase(T&& val) : val(std::move(val)) {} // move constructor that takes a T
 
 protected:
   T val;
@@ -26,9 +35,27 @@ struct Prop : public PropBase<T, field_kind::scalar>
     return _eftype;
   }
 
-  Prop() = default;
+  // (C++ 14 has enable_if_t, but this works with C++ 11)
+  // If T is default-constructible, provide a default constructor for PropBase<T>
+  template <typename U = T, typename std::enable_if<std::is_default_constructible<U>::value>::type* = nullptr>
+  Prop() : PropBase<T, field_kind::scalar>{} {}
+  
   Prop(const T& val) : PropBase<T, field_kind::scalar>{val} {}
   Prop(T&& val) : PropBase<T, field_kind::scalar>{std::move(val)} {}
+
+  // copy assignment operator
+  Prop& operator=(const T& other)  
+  {
+    this->val = other;
+    return *this;
+  }
+
+  // move assignment operator
+  Prop& operator=(T&& other)  
+  {
+    this->val = std::move(other);
+    return *this;
+  }
 
   inline erased_lvalue_ref reflect() { return erased_lvalue_ref{eftype().evalue, ref{val}}; }
 
