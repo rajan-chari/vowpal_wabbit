@@ -109,6 +109,75 @@ TEST(Serialization, IndividualType_SchemaGeneration)
   test_single_type<std::string>("string");
 }
 
+TEST(SerializationSupport, ErasedLValueAndErasedField)
+{
+  // This is the struct we want to manipulate
+  test_single<int> t;
+  t.a = 1000;
+
+  // erased ref to t.a
+  erased_lvalue_ref elv_t_a {
+    type<Prop<int>>::erase(),
+    ref(t.a)
+  };
+
+  // erased ref to t
+  erased_lvalue_ref elv_t {
+    type<test_single<int>>::erase(),
+    ref(t)
+  };
+
+  // set t.a using erased_lvalue_ref 
+  auto& val = elv_t_a.get<Prop<int>>();
+  assert(val.val == 1000);
+  val.val = 2000;
+  assert(t.a == 2000);
+
+  // field_ptr holds offset a given member variable for a given class
+  // In this case, we want to hold offset to 'a' for test_single<int>
+  constexpr field_ptr<test_single<int>, Prop<int>> field_ptr_a {&test_single<int>::a};
+
+  // Declare the pointer that will eventually point to t.a
+  erased_lvalue_ref* elv_field_ptr = nullptr;
+
+  // binder that can be used to bind t.a to an erased_lvalue_ptr 
+  const erased_field_binder erased_field_binder_a = field_ptr_a.erase_binder();
+  assert(erased_field_binder_a.try_bind(elv_t, elv_field_ptr));
+
+  auto& val2 = elv_field_ptr->get<Prop<int>>();
+  
+  val2 = 3000;
+  assert(t.a == 3000);
+  delete elv_field_ptr;
+}
+
+TEST(SerializationSupport, FieldPtr)
+{
+  test_single<int> t;
+
+  field_ptr_id<test_single<int>,Prop<int>,&test_single<int>::a> ptr_id;
+  field_ptr<test_single<int>, Prop<int>> ptr = ptr_id();
+  Prop<int>& x = ptr.bind(t);
+  x = 1000;
+  assert(t.a == 1000);
+
+  field_ptr<test_single<int>, Prop<int>> ptr2 {&test_single<int>::a};
+  erased_lvalue_ref elv_t { type<test_single<int>>::erase(), ref(t) };
+  Prop<int>* y;
+  assert(ptr2.try_bind(elv_t,y));
+  y->val = 2000;
+  assert(t.a == 2000);
+
+  ///// Study this
+  erased_lvalue_ref* elv_ptr;  // This will be a pointer to a Prop<int>
+  erased_field_binder binder = ptr2.erase_binder();  // This is a binder for Prop<int>
+  assert(binder.try_bind(elv_t, elv_ptr));  // This binds elv_ptr to t.a
+  elv_ptr->set(3000);
+  assert(t.a == 3000);
+
+  delete elv_ptr;
+}
+
 TEST(Serialization, IndividualType_Write_Read)
 {
   // register with the global instance

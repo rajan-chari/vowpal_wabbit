@@ -195,7 +195,8 @@ struct fbb_ReadElement_dispatcher
 
   void operator()(const flatbuffers::Table& table, const reflection::Field& field, typesys::erased_lvalue_ref& value)
   {
-    dt.dispatch(value._type, table, field, value);
+    const bool dispatched = dt.dispatch(value._type, table, field, value);
+    assert(dispatched);
   }
 
 private:

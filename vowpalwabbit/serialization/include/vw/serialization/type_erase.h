@@ -235,9 +235,9 @@ struct ref
   }
 
   // void* ctor
-  // ref(void*& r) : _r(&r) 
-  // {
-  // }
+  ref(void* r) : _r(r) 
+  {
+  }
 
   //getter
   template <typename T>

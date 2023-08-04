@@ -38,7 +38,6 @@ namespace typesys
       if (typesys::is_instance<P, typesys::Prop>::value)
       {
         // need to pull out the inner type of the property
-
         std::cout << "type: " << typeid(typename P::value_type).name() << std::endl;
 
         // this is a scalar
